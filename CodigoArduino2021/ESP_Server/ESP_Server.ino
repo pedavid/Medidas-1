@@ -6,8 +6,11 @@
 #include <Wire.h>
 #include <Adafruit_ADS1X15.h>   // Control del ADC
 #include <ArduinoJson.h>
+#include <Ticker.h>
 
-Adafruit_ADS1115 ads;
+Ticker timer_medir_adc;
+
+              //Adafruit_ADS1115 ads;
 
 ESP8266WiFiMulti wifiMulti;     // Create an instance of the ESP8266WiFiMulti class, called 'wifiMulti'
 
@@ -20,6 +23,11 @@ void handleNotFound();
 #define ADS_ADDRESS 0x48
 #define MEDIR 1
 #define NO_MEDIR 0
+#define FREC_MUESTREO 0.0083/2 // esta en SEGUNDOS ESTE DIVIDO DOS ESTA FALOPA
+                               
+
+
+//Por Voy a tomar una fmax=60 Hz => por nyquist fs = 120 Hz => 8.33 mS
 
 const int capacity = JSON_ARRAY_SIZE(MUESTRAS) + 2*JSON_OBJECT_SIZE(MUESTRAS); // Hago espacio en memoria para el json
 StaticJsonDocument<capacity> doc;
@@ -35,16 +43,32 @@ int flagAdc = MEDIR;
 int adcBuffer[MUESTRAS];
 int period = 2;
 unsigned long time_now = 0;
-
+void leer_adc(){
+  int state = digitalRead(LED_BUILTIN);  // get the current state of GPIO1 pin
+  digitalWrite(LED_BUILTIN, !state);     // set pin to the opposite state
+  
+  
+  
+  if(flagAdc==MEDIR){
+    time_now += period;
+                // adcBuffer[i] = ads.readADC_SingleEnded(0);  //bufferTension
+    i++;
+  }
+  if(i>=MUESTRAS)  // Si lleno el buffer
+    flagAdc = NO_MEDIR;
+ 
+}
 void setup(void){
+
+  pinMode(LED_BUILTIN, OUTPUT);
   Serial.begin(115200);         // Start the Serial communication to send messages to the computer
   delay(10);
   Serial.println('\n');
 
   Wire.begin();
-  ads.begin();
+            // ads.begin();
 
-  wifiMulti.addAP("Pedro_2.4GHz", "ViceCityFever142024");   // add Wi-Fi networks you want to connect to
+  wifiMulti.addAP("Fibertel WiFi017 2.4GHz", "0102017365");   // add Wi-Fi networks you want to connect to
 
   Serial.println("Connecting ...");
   int i = 0;
@@ -69,26 +93,13 @@ void setup(void){
 
   server.begin();                           // Actually start the server
   Serial.println("HTTP server started");
+
+  timer_medir_adc.attach(FREC_MUESTREO, leer_adc);
 }
 
 void loop(void){
-
-  switch(flagAdc){    //pooleo del adc
-    case MEDIR:
-      if(millis() >= time_now + period){
-        time_now += period;
-        adcBuffer[i] = ads.readADC_SingleEnded(0);  //bufferTension
-        i++;
-      }
-      if(i>=MUESTRAS){  // Si lleno el buffer
-        flagAdc = NO_MEDIR;
-      }
-      break;
-    case NO_MEDIR:
-        server.handleClient();    // Listen for HTTP requests from clients
-      break;
-    default:
-      break;
+  if(flagAdc==NO_MEDIR){
+    server.handleClient();    // Listen for HTTP requests from clients
   }
 } 
 
