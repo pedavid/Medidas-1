@@ -29,10 +29,12 @@ void handleNotFound();
 
 //Por Voy a tomar una fmax=60 Hz => por nyquist fs = 120 Hz => 8.33 mS
 
-const int capacity = JSON_ARRAY_SIZE(MUESTRAS) + 2*JSON_OBJECT_SIZE(MUESTRAS); // Hago espacio en memoria para el json
+const int capacity = JSON_ARRAY_SIZE(MUESTRAS+1) + 2*JSON_OBJECT_SIZE(MUESTRAS); // Hago espacio en memoria para el json
 StaticJsonDocument<capacity> doc;
 
-JsonObject json = doc.createNestedObject();       // Creo el objecto Json
+JsonObject root = doc.to<JsonObject>();
+
+JsonArray json = root.createNestedArray("data");       // Creo el objecto Json
 
 String output;                                    // Acá guardo la deserializacion del json
  
@@ -40,7 +42,8 @@ String output;                                    // Acá guardo la deserializac
 int a = 0;
 int i = 0;
 int flagAdc = MEDIR;
-int adcBuffer[MUESTRAS];
+int adcBufferTension[MUESTRAS];
+int adcBufferCorriente[MUESTRAS];
 int period = 2;
 unsigned long time_now = 0;
 
@@ -50,7 +53,8 @@ void leer_adc(){
    
   if(flagAdc==MEDIR){
     time_now += period;
-    adcBuffer[i] = ads.readADC_SingleEnded(0);  //bufferTension
+    adcBufferCorriente[i] = ads.readADC_SingleEnded(0);  //bufferCorriente
+    adcBufferTension[i] = ads.readADC_SingleEnded(1);
     i++;
   }
   if(i>=MUESTRAS)  // Si lleno el buffer
@@ -69,7 +73,7 @@ void setup(void){
   ads.begin();
 
   wifiMulti.addAP("Pedro_2.4GHz", "ViceCityFever142024");   // add Wi-Fi networks you want to connect to
-
+delay(10);
   Serial.println("Connecting ...");
   int i = 0;
   while (wifiMulti.run() != WL_CONNECTED) { // Wait for the Wi-Fi to connect: scan for Wi-Fi networks, and connect to the strongest of the networks above
@@ -105,12 +109,16 @@ void loop(void){
 
 void handleRoot() {
   for(i=0;i<MUESTRAS;i++){
-     Serial.println(adcBuffer[i]);
-    doc[i]["tension"] = adcBuffer[i];
-    doc[i]["corriente"] = i;
+     //Serial.println(adcBuffer[i]);
+    json[i]["tension"] = adcBufferTension[i];
+    json[i]["corriente"] = adcBufferCorriente[i];
+    if( i >=48){
+    Serial.println(adcBufferCorriente[i]);
+    }
   }
+
   i=0;
-  serializeJson(doc, output);
+  serializeJson(root, output);
   server.send(200, "text/json", output);   // Send HTTP status 200 (Ok) and send some text to the browser/client
   flagAdc = MEDIR;
 }
